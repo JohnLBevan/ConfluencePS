@@ -109,49 +109,30 @@
 
         # Display results depending on the call we made
         # Hashing everything because I don't like the lower case property names from the REST call
-        If ($PageID) {
-            Write-Verbose "Showing -PageID $PageID results"
-            If ($Expand) {
-                $Rest | Select @{n='ID';    e={$_.id}},
-                               @{n='Title'; e={$_.title}},
-                               @{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}},
-                               @{n='Ver';   e={$_.version.number}},
-                               @{n='Body';  e={$_.body.view.value}}
-            } Else {
-                $Rest | Select @{n='ID';    e={$_.id}},
-                               @{n='Title'; e={$_.title}},
-                               @{n='Space'; e={$_.space.key}}
-            }
-        } ElseIf ($Title) {
-            Write-Verbose "Showing -Title $Title results"
-            If ($Expand) {
-                $Rest | Select -ExpandProperty Results | Where {$_.Title -like "*$Title*"} |
-                    Select @{n='ID';    e={$_.id}},
-                           @{n='Title'; e={$_.title}},
-                           @{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}},
-                           @{n='Ver';   e={$_.version.number}},
-                           @{n='Body';  e={$_.body.view.value}}
-            } Else {
-                $Rest | Select -ExpandProperty Results | Where {$_.Title -like "*$Title*"} |
-                    Select @{n='ID';    e={$_.id}},
-                           @{n='Title'; e={$_.title}},
-                           @{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}}
-            }
-        } Else {
-            Write-Verbose "Showing results"
-            If ($Expand) {
-                $Rest | Select -ExpandProperty Results |
-                    Select @{n='ID';    e={$_.id}},
-                           @{n='Title'; e={$_.title}},
-                           @{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}},
-                           @{n='Ver';   e={$_.version.number}},
-                           @{n='Body';  e={$_.body.view.value}}
-            } Else {
-                $Rest | Select -ExpandProperty Results |
-                    Select @{n='ID';    e={$_.id}},
-                           @{n='Title'; e={$_.title}},
-                           @{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}}
-            }
+        [hashtable[]]$PropertiesToReturn = @(
+            @{n='ID';    e={$_.id}}
+            ,@{n='Title'; e={$_.title}}
+            ,@{n='Space'; e={$_._expandable.space -replace '/rest/api/space/',''}}
+        )
+        if ($Expand) {
+            $PropertiesToReturn += @(
+                @{n='Ver';   e={$_.version.number}}
+                ,@{n='Body';  e={$_.body.view.value}}
+            )
         }
+        [string]$VerboseMessage = ''
+        [scriptblock]$ResultFilter = {$true}
+        [scriptblock]$ExpandResults = {$_.Results}
+
+        If ($PageID) {
+            $VerboseMessage = "-PageID $PageID"
+            $ExpandResults = {$_}
+        } ElseIf ($Title) {
+            $VerboseMessage = "-Title $Title"
+            $ResultFilter = {$_.Title -like "*$Title*"}
+        }
+        $VerboseMessage = $VerboseMessage -replace '^(.+)$', ' $1' #if we have something to add, add a space before it; if it's blank, keep it blank
+        Write-Verbose "Showing$VerboseMessage results"
+        $Rest | %{& $ExpandResults} | ? $ResultFilter | Select -Property $PropertiesToReturn
     }
 }
